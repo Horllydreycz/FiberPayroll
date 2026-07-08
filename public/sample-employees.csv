@@ -1,0 +1,9 @@
+fullName,email,country,jobTitle,department,walletAddress,preferredStablecoin,salaryAmount,currency,paymentFrequency,employmentType,taxId
+Yuki Tanaka,yuki.tanaka@acme.example,Japan,Backend Engineer,Engineering,ckt1qrejnmlar3r452tcg57gvq8patctcgy8acync9kxvgkkkxw8yk2tnk,RUSD,7400,USD,MONTHLY,FULL_TIME,TAX-204881
+Amara Nwosu,amara.nwosu@acme.example,Nigeria,Support Lead,Operations,ckt1qrejnmlar3r452tcg57gvq8patctcgy8acync9kxvgkkkxw8am9wos,USDI,5200,USD,MONTHLY,FULL_TIME,TAX-771203
+Lucas Rossi,lucas.rossi@acme.example,Italy,Frontend Engineer,Engineering,ckt1qrejnmlar3r452tcg57gvq8patctcgy8acync9kxvgkkkxw8lcrss1,RUSD,6900,EUR,MONTHLY,FULL_TIME,TAX-339100
+Mei Lin,mei.lin@acme.example,Singapore,Product Manager,Product,ckt1qrejnmlar3r452tcg57gvq8patctcgy8acync9kxvgkkkxw8me1lin,USDC,10200,USD,MONTHLY,FULL_TIME,TAX-558712
+Diego Herrera,diego.herrera@acme.example,Argentina,Data Engineer,Data,ckt1qrejnmlar3r452tcg57gvq8patctcgy8acync9kxvgkkkxw8dghrr2,RUSD,5800,USD,MONTHLY,CONTRACTOR,TAX-902145
+Fatima Zahra,fatima.zahra@acme.example,Morocco,QA Engineer,Engineering,ckt1qrejnmlar3r452tcg57gvq8patctcgy8acync9kxvgkkkxw8ftmzh3,USDI,4600,USD,MONTHLY,FULL_TIME,TAX-118890
+Erik Johansson,erik.johansson@acme.example,Sweden,DevOps Engineer,Engineering,ckt1qrejnmlar3r452tcg57gvq8patctcgy8acync9kxvgkkkxw8erkjhn,RUSD,8100,EUR,MONTHLY,FULL_TIME,TAX-445027
+Nadia Petrova,nadia.petrova@acme.example,Bulgaria,Designer,Design,ckt1qrejnmlar3r452tcg57gvq8patctcgy8acync9kxvgkkkxw8ndptrv,RUSD,4900,EUR,MONTHLY,FULL_TIME,TAX-660318

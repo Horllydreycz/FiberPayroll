@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.gitignore
+.env
+*.md
+prisma/dev.db
+prisma/dev.db-journal
+Dockerfile
+docker-compose.yml
+.dockerignore

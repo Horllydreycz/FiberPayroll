@@ -1,0 +1,50 @@
+# FiberPayroll — production container.
+#
+#   docker compose up --build
+#   → http://localhost:3000
+#
+# Values in ${…} are read from .env automatically. FIBER_RPC_URL is overridden
+# because "localhost" inside a container is the container itself — the app
+# reaches your Fiber node on the host via host.docker.internal.
+#
+# If your fnn nodes run in their own Docker network instead, set
+# DOCKER_FIBER_RPC_URL=http://<fnn-container-name>:8227 in .env and attach
+# this service to that network.
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_FIBER_MODE: ${NEXT_PUBLIC_FIBER_MODE:-rpc}
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: file:/app/data/dev.db
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET missing — set it in .env}
+      AUTH_TRUST_HOST: "true"
+      FIBER_MODE: ${FIBER_MODE:-rpc}
+      # fiber-a publishes host 8227 -> container 9227, so on fibernet the
+      # same endpoint is fiber-a:9227. Override with DOCKER_FIBER_RPC_URL.
+      FIBER_RPC_URL: ${DOCKER_FIBER_RPC_URL:-http://fiber-a:9227}
+      FIBER_PAYOUT_PUBKEY: ${FIBER_PAYOUT_PUBKEY:-}
+      FIBER_PAYOUT_ADDR: ${FIBER_PAYOUT_ADDR:-}
+      FIBER_PAYMENT_SHANNONS: ${FIBER_PAYMENT_SHANNONS:-100000000}
+      FIBER_CKB_RPC_URL: ${FIBER_CKB_RPC_URL:-}
+      FIBER_PAYER_LOCK_ARG: ${FIBER_PAYER_LOCK_ARG:-}
+      FIBER_PAYER_LOCK_CODE_HASH: ${FIBER_PAYER_LOCK_CODE_HASH:-}
+      FIBER_RUSD_UDT_SCRIPT: ${FIBER_RUSD_UDT_SCRIPT:-}
+    volumes:
+      - payroll-data:/app/data
+    networks:
+      - fibernet
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+volumes:
+  payroll-data:
+
+networks:
+  fibernet:
+    external: true

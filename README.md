@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Fiber Payroll
 
-## Getting Started
+> Global payroll in stablecoins, completed in minutes — built on the Nervos CKB **Fiber Network**.
 
-First, run the development server:
+Upload your team, generate a payroll run, approve it, and pay everyone worldwide in stablecoins
+(RUSD/USDI/USDC) over Fiber's payment channels — with **live settlement tracking**, PDF payslips
+with QR verification, and audit-ready accounting exports.
+
+## Quick start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run db:push      # create the SQLite schema
+npm run db:seed      # seed demo company + employees + a completed payroll
+npm run dev          # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Demo login:** `admin@fiberpayroll.dev` · `password123`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## The 5-minute demo flow
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Log in** → land on the dashboard (treasury balance, settlement rate, recent runs).
+2. **Employees** → `Import` and drop `public/sample-employees.csv` (validation + duplicate detection + preview).
+3. **New payroll** → select employees, pick the month, **Generate payroll** (creates a draft).
+4. **Review** the run → **Approve** → **Execute payments**.
+5. **Watch live settlement** — payments move `Broadcasting → Processing → Settled` in real time.
+   One payment fails on purpose → click **Retry** → it settles.
+6. **Payslip** → open a settled payment's payslip → **Download PDF** (QR links to a public `/verify` page).
+7. **Reports** → charts by month / country / stablecoin / department → **Export CSV**.
 
-## Learn More
+## Tech
 
-To learn more about Next.js, take a look at the following resources:
+- **Next.js 16** (App Router) · **React 19** · **TypeScript** · **Tailwind v4** · shadcn-style UI
+- **Auth.js v5** (credentials) · **Prisma 6** + **SQLite** (swap `DATABASE_URL` for Postgres)
+- **Recharts** · **@react-pdf/renderer** + **qrcode** · **PapaParse**
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Fiber Network integration
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The payroll ↔ Fiber bridge lives in [`lib/fiber/`](lib/fiber):
 
-## Deploy on Vercel
+- `simulated.ts` — default adapter. Reproduces the real `Created → Inflight → Success/Failed`
+  payment lifecycle locally, so the whole app is demoable with **no node required**.
+- `rpc.ts` — real adapter. Talks to a Fiber node's JSON-RPC (`new_invoice`, `send_payment`,
+  `get_payment`) and denominates payments in a stablecoin UDT via `udt_type_script`.
+- `service.ts` — orchestration: executes a batch, polls settlement, records the timeline,
+  generates payslips, and reconciles the treasury balance.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+To settle against a **live Fiber node**, set in `.env`:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+FIBER_MODE=rpc
+FIBER_RPC_URL=http://127.0.0.1:8227
+FIBER_RUSD_UDT_SCRIPT='{"code_hash":"0x...","hash_type":"type","args":"0x..."}'
+```
+
+See the [Fiber docs](https://www.fiber.world/docs) and
+[run-a-node guide](https://www.fiber.world/docs/quick-start/run-a-node).
+
+## Scripts
+
+| Script | Description |
+| --- | --- |
+| `npm run dev` | Start the dev server |
+| `npm run db:push` | Apply the Prisma schema to SQLite |
+| `npm run db:seed` | Reset + seed demo data |
+| `npm run db:studio` | Open Prisma Studio |
+| `npm run build` | Production build |

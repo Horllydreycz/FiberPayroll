@@ -1,0 +1,204 @@
+// Fiber Payroll — Prisma schema (SQLite for hackathon; swap datasource to
+// PostgreSQL for production without changing the models).
+//
+// SQLite has no native enums, so status/role fields are plain strings with the
+// allowed values documented in lib/constants.ts and mirrored as TS unions.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id              String   @id @default(cuid())
+  name            String
+  logoUrl         String?
+  country         String?
+  defaultCurrency String   @default("USD")
+  defaultStablecoin String @default("RUSD")
+  timezone        String   @default("UTC")
+  // Fiber node identity used to send payroll payments
+  fiberNodePubkey String?
+  balance         Float    @default(0) // company treasury balance (stablecoin)
+
+  users        User[]
+  employees    Employee[]
+  payrollBatches PayrollBatch[]
+  auditLogs    AuditLog[]
+  notifications Notification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         String   @default("ADMIN") // ADMIN | FINANCE_MANAGER | VIEWER
+  avatarUrl    String?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model Employee {
+  id                String   @id @default(cuid())
+  fullName          String
+  email             String
+  country           String
+  jobTitle          String?
+  department        String?
+  walletAddress     String
+  preferredStablecoin String @default("RUSD")
+  salaryAmount      Float
+  currency          String   @default("USD")
+  paymentFrequency  String   @default("MONTHLY") // MONTHLY | BIWEEKLY | WEEKLY
+  employmentType    String   @default("FULL_TIME") // FULL_TIME | CONTRACTOR | PART_TIME
+  taxId             String?
+  status            String   @default("ACTIVE") // ACTIVE | INACTIVE
+  notes             String?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  payrollItems PayrollItem[]
+  payslips     Payslip[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, email])
+  @@index([companyId])
+}
+
+model PayrollBatch {
+  id           String   @id @default(cuid())
+  reference    String   @unique // human-friendly e.g. PR-2026-06-001
+  payrollMonth String // e.g. "2026-06"
+  status       String   @default("DRAFT") // DRAFT | APPROVED | PROCESSING | COMPLETED | FAILED | CANCELLED
+  totalAmount  Float    @default(0)
+  stablecoin   String   @default("RUSD")
+  createdByName String?
+  approvedAt   DateTime?
+  completedAt  DateTime?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  items PayrollItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model PayrollItem {
+  id               String  @id @default(cuid())
+  grossAmount      Float
+  taxAmount        Float   @default(0)
+  netAmount        Float
+  currency         String  @default("USD")
+  stablecoinAmount Float // converted amount actually sent
+  stablecoin       String  @default("RUSD")
+  walletAddress    String
+  status           String  @default("PENDING") // PENDING | BROADCASTING | PROCESSING | SETTLED | FAILED | EXPIRED | REFUNDED
+
+  batchId    String
+  batch      PayrollBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  employeeId String
+  employee   Employee     @relation(fields: [employeeId], references: [id])
+
+  payment Payment?
+  payslip Payslip?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([batchId])
+  @@index([employeeId])
+}
+
+// A Fiber payment-channel payment for a single payroll item.
+model Payment {
+  id            String  @id @default(cuid())
+  paymentHash   String  @unique // Fiber HTLC payment hash
+  invoice       String? // encoded Fiber invoice the employee was paid against
+  amount        Float
+  stablecoin    String  @default("RUSD")
+  status        String  @default("CREATED") // CREATED | INFLIGHT | SUCCESS | FAILED
+  fee           Float   @default(0)
+  failedReason  String?
+  routeHops     Int     @default(0)
+  settledAt     DateTime?
+  // On-chain funding tx of the Fiber channel this payment settled through
+  // (the verifiable on-chain anchor; individual payments are off-chain).
+  onchainTxHash String?
+
+  payrollItemId String      @unique
+  payrollItem   PayrollItem @relation(fields: [payrollItemId], references: [id], onDelete: Cascade)
+
+  events SettlementEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Timeline events for the settlement dashboard.
+model SettlementEvent {
+  id        String   @id @default(cuid())
+  stage     String // PAYMENT_REQUESTED | BROADCAST | CONFIRMED | SETTLED | FAILED
+  message   String?
+  paymentId String
+  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([paymentId])
+}
+
+model Payslip {
+  id            String   @id @default(cuid())
+  number        String   @unique
+  verifyToken   String   @unique // used by public QR verification
+  payrollItemId String   @unique
+  payrollItem   PayrollItem @relation(fields: [payrollItemId], references: [id], onDelete: Cascade)
+  employeeId    String
+  employee      Employee @relation(fields: [employeeId], references: [id])
+  createdAt     DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  type      String   @default("info") // success | warning | error | info
+  title     String
+  body      String?
+  read      Boolean  @default(false)
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  detail    String?
+  actorName String?
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+}
