@@ -51,15 +51,21 @@ export const SETTLEMENT_STAGES = [
 ] as const;
 export type SettlementStage = (typeof SETTLEMENT_STAGES)[number];
 
-// Stablecoins supported by Fiber (UDTs whitelisted on CKB).
-export const STABLECOINS = ["RUSD", "USDI", "USDC"] as const;
+// Payout assets. Payroll settles natively in CKB over Fiber; the stablecoins
+// are UDTs whitelisted on CKB (future work — needs a UDT channel).
+export const STABLECOINS = ["CKB", "RUSD", "USDI", "USDC"] as const;
 export type Stablecoin = (typeof STABLECOINS)[number];
+
+/** The asset actually sent over the Fiber channel. */
+export const PAYOUT_ASSET = "CKB";
 
 export const FIAT_CURRENCIES = ["USD", "EUR", "GBP", "NGN", "INR", "BRL"] as const;
 export type FiatCurrency = (typeof FIAT_CURRENCIES)[number];
 
-// Static demo FX rates: 1 unit fiat -> stablecoin (USD-pegged). For the
-// hackathon we treat all stablecoins as USD-pegged 1:1.
+/** Salary currency choices — CKB (native, recommended) plus demo fiat. */
+export const CURRENCY_OPTIONS = ["CKB", ...FIAT_CURRENCIES];
+
+// Static demo FX rates: 1 unit fiat -> USD.
 export const FX_TO_USD: Record<string, number> = {
   USD: 1,
   EUR: 1.08,
@@ -69,9 +75,17 @@ export const FX_TO_USD: Record<string, number> = {
   BRL: 0.18,
 };
 
-export function toStablecoin(amount: number, currency: string): number {
-  const rate = FX_TO_USD[currency] ?? 1;
-  return Math.round(amount * rate * 100) / 100;
+// Demo rate: CKB bought by 1 USD (static for the hackathon).
+export const CKB_PER_USD = 250;
+
+/**
+ * Convert a salary into the CKB amount that is actually paid over Fiber.
+ * CKB salaries pass through unchanged; fiat is converted at demo rates.
+ */
+export function toPayoutCkb(amount: number, currency: string): number {
+  if (currency === "CKB" || !currency) return Math.round(amount * 1e4) / 1e4;
+  const usd = amount * (FX_TO_USD[currency] ?? 1);
+  return Math.round(usd * CKB_PER_USD * 1e4) / 1e4;
 }
 
 // Simple flat tax estimate for payslip breakdown (demo only).

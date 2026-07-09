@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
+import { PAYOUT_ASSET } from "@/lib/constants";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { CreatePayrollClient } from "@/components/payroll/create-payroll-client";
 
@@ -30,7 +31,7 @@ export default async function NewPayrollPage() {
           preferredStablecoin: e.preferredStablecoin,
         }))}
         defaultMonth={defaultMonth}
-        stablecoin={user.company.defaultStablecoin}
+        stablecoin={PAYOUT_ASSET}
       />
     </div>
   );

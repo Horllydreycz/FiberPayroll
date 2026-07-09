@@ -42,6 +42,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ itemId:
     currency: item.currency,
     stablecoinAmount: item.stablecoinAmount,
     stablecoin: item.stablecoin,
+    usdAmount: item.payment?.usdAmount,
+    usdRate: item.payment?.usdRate,
     txHash: item.payment?.paymentHash ?? "",
     paidAt: item.payment?.settledAt ?? null,
   });

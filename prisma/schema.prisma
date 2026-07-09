@@ -145,6 +145,9 @@ model Payment {
   // On-chain funding tx of the Fiber channel this payment settled through
   // (the verifiable on-chain anchor; individual payments are off-chain).
   onchainTxHash String?
+  // USD valuation captured at settlement time (CoinGecko CKB/USD spot).
+  usdRate   Float?
+  usdAmount Float?
 
   payrollItemId String      @unique
   payrollItem   PayrollItem @relation(fields: [payrollItemId], references: [id], onDelete: Cascade)

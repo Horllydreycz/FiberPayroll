@@ -49,16 +49,14 @@ export default function LandingPage() {
       <main className="flex-1">
         {/* Hero */}
         <section className="relative overflow-hidden">
-          <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(60%_50%_at_50%_0%,oklch(0.6_0.2_277/0.12),transparent)]" />
+          <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(60%_50%_at_50%_0%,oklch(0.55_0.12_160/0.12),transparent)]" />
           <div className="mx-auto max-w-6xl px-4 py-20 text-center md:px-6 md:py-28">
             <Badge className="mb-5 gap-1.5">
               <Zap className="h-3.5 w-3.5" /> Built on Nervos CKB · Fiber Network
             </Badge>
             <h1 className="mx-auto max-w-3xl text-balance text-4xl font-semibold tracking-tight md:text-6xl">
               Global payroll in stablecoins,{" "}
-              <span className="bg-gradient-to-r from-primary to-violet-500 bg-clip-text text-transparent">
-                completed in minutes
-              </span>
+              <span className="text-primary">completed in minutes</span>
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-pretty text-lg text-muted-foreground">
               Upload your team, approve a payroll run, and pay everyone worldwide in stablecoins

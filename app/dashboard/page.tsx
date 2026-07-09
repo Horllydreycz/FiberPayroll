@@ -12,6 +12,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { getTreasury } from "@/lib/fiber/service";
+import { getCkbUsdPrice, approxUsd } from "@/lib/price";
 import { formatMoney, formatCkb, formatDate, initials } from "@/lib/utils";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
@@ -25,14 +26,26 @@ export default async function DashboardPage() {
   const companyId = user.companyId;
   const company = user.company;
 
-  const [treasury, activeEmployees, batches, settledPayments, allItems, failedItems, recentBatches] =
+  const [treasury, ckbUsd, activeEmployees, batches, settledPayments, allItems, failedItems, recentBatches] =
     await Promise.all([
       getTreasury(companyId),
+      getCkbUsdPrice(),
       prisma.employee.count({ where: { companyId, status: "ACTIVE" } }),
       prisma.payrollBatch.findMany({ where: { companyId } }),
       prisma.payment.findMany({
-        where: { status: "SUCCESS", payrollItem: { batch: { companyId } } },
-        select: { amount: true, fee: true },
+        // Strictly settled: payment SUCCESS, has a settlement timestamp, and
+        // the payroll item itself is marked SETTLED.
+        where: {
+          status: "SUCCESS",
+          settledAt: { not: null },
+          payrollItem: { status: "SETTLED", batch: { companyId } },
+        },
+        select: {
+          amount: true,
+          fee: true,
+          settledAt: true,
+          payrollItem: { select: { batch: { select: { payrollMonth: true } } } },
+        },
       }),
       prisma.payrollItem.findMany({
         where: { batch: { companyId } },
@@ -56,22 +69,73 @@ export default async function DashboardPage() {
   const pending = batches.filter((b) => ["DRAFT", "APPROVED", "PROCESSING"].includes(b.status)).length;
   const completed = batches.filter((b) => b.status === "COMPLETED").length;
   const settledCount = allItems.filter((i) => i.status === "SETTLED").length;
-  const successRate = allItems.length ? Math.round((settledCount / allItems.length) * 100) : 100;
+  const successRate = allItems.length
+    ? `${Math.round((settledCount / allItems.length) * 100)}%`
+    : "—";
 
-  const thisMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
-  const monthTotal = batches
-    .filter((b) => b.payrollMonth === thisMonth)
-    .reduce((s, b) => s + b.totalAmount, 0);
+  const rawFirst = user.name.split(" ")[0];
+  const firstName = rawFirst.charAt(0).toUpperCase() + rawFirst.slice(1);
+
+  const now = new Date();
+  const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const thisMonth = monthKey(now);
+
+  // Only successfully settled payments count as "paid" — drafts, in-flight,
+  // failed and cancelled runs are excluded.
+  const totalForMonth = (m: string) =>
+    settledPayments
+      .filter((p) => p.payrollItem.batch.payrollMonth === m)
+      .reduce((s, p) => s + p.amount, 0);
+  const monthTotal = totalForMonth(thisMonth);
+
+  // Last 6 payroll months (oldest → newest) for the trend sparkline,
+  // and previous month for the change chip.
+  const lastMonths = Array.from({ length: 6 }, (_, i) =>
+    monthKey(new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)),
+  );
+  const monthSeries = lastMonths.map(totalForMonth);
+  const prevTotal = monthSeries[4];
+  const paidDelta =
+    prevTotal > 0
+      ? {
+          label: `${monthTotal >= prevTotal ? "+" : ""}${Math.round(((monthTotal - prevTotal) / prevTotal) * 100)}% vs ${lastMonths[4]}`,
+          positive: monthTotal >= prevTotal,
+        }
+      : undefined;
+
+  // Narrative greeting: facts with a verb — what happened, what needs action.
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const paidToday = settledPayments.filter((p) => p.settledAt && p.settledAt >= todayStart);
+  const paidTodayTotal = paidToday.reduce((s, p) => s + p.amount, 0);
+  const awaitingRuns = batches.filter((b) => b.status === "DRAFT" || b.status === "APPROVED");
+  const failedCount = allItems.filter((i) => i.status === "FAILED").length;
+
+  const greetingParts = [
+    paidToday.length
+      ? `${formatCkb(paidTodayTotal)} paid today across ${paidToday.length} payment${paidToday.length === 1 ? "" : "s"}`
+      : "No payments today",
+    awaitingRuns.length
+      ? `${awaitingRuns.length} run${awaitingRuns.length === 1 ? "" : "s"} awaiting action`
+      : null,
+    failedCount ? `${failedCount} failed payment${failedCount === 1 ? "" : "s"} to retry` : null,
+  ].filter(Boolean);
+
+  // Exception: flag the treasury when channel liquidity can't cover the next run.
+  const nextRun = awaitingRuns.sort((a, b) => +b.createdAt - +a.createdAt)[0];
+  const treasuryAlert =
+    treasury.live && nextRun && treasury.channelCkb < nextRun.totalAmount
+      ? `Channel liquidity won't cover ${nextRun.reference} (${formatCkb(nextRun.totalAmount)} needed)`
+      : undefined;
+  if (!treasuryAlert && treasury.live && nextRun) {
+    greetingParts.push("channel liquidity covers the next run");
+  }
 
   return (
     <div>
-      <PageHeader title={`Welcome back, ${user.name.split(" ")[0]}`} description="Here's what's happening with your payroll.">
-        <Button asChild>
-          <Link href="/dashboard/payroll/new">
-            <Plus /> New payroll
-          </Link>
-        </Button>
-      </PageHeader>
+      <PageHeader
+        title={`Welcome back, ${firstName}`}
+        description={greetingParts.join(" · ")}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -79,14 +143,39 @@ export default async function DashboardPage() {
           value={treasury.live ? formatCkb(treasury.totalCkb) : formatMoney(treasury.balance)}
           sub={
             treasury.live
-              ? `node: ${formatCkb(treasury.channelCkb)} in channels · ${formatCkb(treasury.onchainCkb)} on-chain`
+              ? [
+                  approxUsd(treasury.totalCkb, ckbUsd),
+                  `${formatCkb(treasury.channelCkb)} in channels · ${formatCkb(treasury.onchainCkb)} on-chain`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
               : company.defaultStablecoin
           }
           icon={Wallet}
+          alert={treasuryAlert}
         />
         <StatCard label="Active employees" value={String(activeEmployees)} sub="across your team" icon={Users} accent="primary" />
-        <StatCard label="Paid this month" value={formatMoney(monthTotal)} sub={thisMonth} icon={CircleDollarSign} accent="success" />
-        <StatCard label="Settlement rate" value={`${successRate}%`} sub={`${settledCount}/${allItems.length} payments`} icon={TrendingUp} accent="success" />
+        <StatCard
+          label="Paid this month"
+          value={formatMoney(monthTotal)}
+          sub={thisMonth}
+          icon={CircleDollarSign}
+          accent="success"
+          delta={paidDelta}
+          trend={monthSeries.filter((v) => v > 0).length >= 2 ? monthSeries : undefined}
+        />
+        <StatCard
+          label="Settlement rate"
+          value={successRate}
+          sub={allItems.length ? `${settledCount}/${allItems.length} payments` : "no payments yet"}
+          icon={TrendingUp}
+          accent={failedCount ? "destructive" : "success"}
+          alert={
+            failedCount
+              ? `${failedCount} payment${failedCount === 1 ? "" : "s"} failed — retry from the run page`
+              : undefined
+          }
+        />
       </div>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -108,7 +197,16 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-1">
             {recentBatches.length === 0 && (
-              <p className="py-8 text-center text-sm text-muted-foreground">No payroll runs yet.</p>
+              <div className="flex flex-col items-center gap-3 py-10 text-center">
+                <p className="text-sm text-muted-foreground">
+                  No payroll runs yet. Add employees, then run your first payroll.
+                </p>
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/dashboard/payroll/new">
+                    <Plus /> Create payroll
+                  </Link>
+                </Button>
+              </div>
             )}
             {recentBatches.map((b) => (
               <Link
@@ -119,7 +217,7 @@ export default async function DashboardPage() {
                 <div>
                   <p className="text-sm font-medium">{b.reference}</p>
                   <p className="text-xs text-muted-foreground">
-                    {b.payrollMonth} · {b._count.items} payments · {formatDate(b.createdAt)}
+                    {b.payrollMonth} · {b._count.items} {b._count.items === 1 ? "payment" : "payments"} · {formatDate(b.createdAt)}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">

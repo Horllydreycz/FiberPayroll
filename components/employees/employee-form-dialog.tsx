@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { STABLECOINS, FIAT_CURRENCIES, EMPLOYMENT_TYPES, PAYMENT_FREQUENCIES } from "@/lib/constants";
+import { STABLECOINS, CURRENCY_OPTIONS, EMPLOYMENT_TYPES, PAYMENT_FREQUENCIES } from "@/lib/constants";
 
 type Employee = EmployeeInput & { id: string };
 
@@ -34,9 +34,9 @@ const EMPTY: EmployeeInput = {
   jobTitle: "",
   department: "",
   walletAddress: "",
-  preferredStablecoin: "RUSD",
+  preferredStablecoin: "CKB",
   salaryAmount: 0,
-  currency: "USD",
+  currency: "CKB",
   paymentFrequency: "MONTHLY",
   employmentType: "FULL_TIME",
   taxId: "",
@@ -133,7 +133,7 @@ export function EmployeeFormDialog({
               />
             </Field>
             <Field label="Currency">
-              <Pick value={form.currency} onChange={(v) => set("currency", v)} options={[...FIAT_CURRENCIES]} />
+              <Pick value={form.currency} onChange={(v) => set("currency", v)} options={[...CURRENCY_OPTIONS]} />
             </Field>
             <Field label="Stablecoin">
               <Pick value={form.preferredStablecoin} onChange={(v) => set("preferredStablecoin", v)} options={[...STABLECOINS]} />

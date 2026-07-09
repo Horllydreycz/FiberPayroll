@@ -4,12 +4,12 @@
 // (send_payment / get_payment) and node_info. Amounts on the CKB RPC are u128
 // hex strings ("0x..").
 //
-// DEMO MODE (keysend): the payroll app holds a single funded channel from the
+// CKB-NATIVE (keysend): the payroll app holds a funded channel from the
 // employer node to a payout node. Each payroll item triggers a REAL keysend
-// payment of FIBER_PAYMENT_SHANNONS (default 1 CKB) to FIBER_PAYOUT_PUBKEY over
-// that channel. The fiat/stablecoin figure is what the business sees; the value
-// actually settled on-chain is the configured CKB amount (sized for the testnet
-// channel). Set FIBER_RUSD_UDT_SCRIPT + an invoice flow for full UDT payments.
+// payment of the item's actual CKB amount to FIBER_PAYOUT_PUBKEY over that
+// channel — what the business sees is what settles. FIBER_PAYMENT_SHANNONS is
+// only a fallback when an item has no amount. Set FIBER_RUSD_UDT_SCRIPT + an
+// invoice flow for stablecoin (UDT) payments.
 
 import type {
   CreateInvoiceParams,
@@ -196,9 +196,15 @@ export class RpcFiberAdapter implements FiberAdapter {
     if (!this.payoutPubkey) {
       throw new Error("FIBER_PAYOUT_PUBKEY is not set for live (rpc) payments.");
     }
+    // CKB-native payroll: send the item's real amount. FIBER_PAYMENT_SHANNONS
+    // is only a fallback if an amount is missing.
+    const shannons =
+      params.amount > 0
+        ? BigInt(Math.round(params.amount * 10 ** CKB_DECIMALS))
+        : this.paymentShannons;
     const body = {
       target_pubkey: this.payoutPubkey,
-      amount: toHex(this.paymentShannons),
+      amount: toHex(shannons),
       keysend: true,
     };
     type SendResult = {

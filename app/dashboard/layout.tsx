@@ -24,7 +24,9 @@ export default async function DashboardLayout({
           user={{ name: user.name, email: user.email, role: user.role }}
           unread={unread}
         />
-        <main className="flex-1 p-4 md:p-6 lg:p-8">{children}</main>
+        <main className="flex-1 p-4 md:p-6 lg:px-10 lg:py-8">
+          <div className="mx-auto w-full max-w-6xl">{children}</div>
+        </main>
       </div>
     </div>
   );

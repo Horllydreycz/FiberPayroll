@@ -42,7 +42,19 @@ export default async function VerifyPage({ params }: { params: Promise<{ token: 
                   <Row label="Payslip" value={payslip!.number} />
                   <Row label="Employee" value={payslip!.employee.fullName} />
                   <Row label="Period" value={payslip!.payrollItem.batch.payrollMonth} />
-                  <Row label="Net paid" value={`${formatMoney(payslip!.payrollItem.stablecoinAmount)} ${payslip!.payrollItem.stablecoin}`} />
+                  <Row label="Net paid" value={formatMoney(payslip!.payrollItem.stablecoinAmount, payslip!.payrollItem.stablecoin)} />
+                  {payslip!.payrollItem.payment?.usdAmount != null && (
+                    <Row
+                      label="USD value at settlement"
+                      value={formatMoney(payslip!.payrollItem.payment.usdAmount, "USD")}
+                    />
+                  )}
+                  {payslip!.payrollItem.payment?.usdRate != null && (
+                    <Row
+                      label="CKB/USD rate"
+                      value={`$${payslip!.payrollItem.payment.usdRate.toFixed(6)} (CoinGecko)`}
+                    />
+                  )}
                   <Row label="Payment hash" value={shortHash(payslip!.payrollItem.payment?.paymentHash ?? "", 10, 8)} mono />
                   {payslip!.payrollItem.payment?.onchainTxHash && (
                     <div className="flex items-center justify-between">

@@ -73,9 +73,19 @@ export default async function PayslipPage({
             <div className="mt-2 flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Paid in {item.stablecoin}</span>
               <span className="font-medium">
-                {formatMoney(item.stablecoinAmount)} {item.stablecoin}
+                {formatMoney(item.stablecoinAmount, item.stablecoin)}
+                {item.payment?.usdAmount != null && (
+                  <span className="ml-1.5 text-muted-foreground">
+                    (≈ {formatMoney(item.payment.usdAmount, "USD")})
+                  </span>
+                )}
               </span>
             </div>
+            {item.payment?.usdRate != null && (
+              <p className="mt-1 text-right text-xs text-muted-foreground">
+                CKB/USD rate at settlement: ${item.payment.usdRate.toFixed(6)} (CoinGecko)
+              </p>
+            )}
           </div>
 
           <div className="rounded-lg border p-4">

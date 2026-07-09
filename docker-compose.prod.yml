@@ -1,0 +1,82 @@
+# FiberPayroll — production stack for a single VPS.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Topology: Caddy (HTTPS, the ONLY published ports) → app → fiber-a ↔ fiber-b.
+# Node RPC ports are never published — fnn's JSON-RPC has no auth, so it must
+# stay on the internal network only.
+#
+# Full walkthrough: deploy/README.md
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env (e.g. payroll.example.com)}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+    networks: [payroll]
+
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_FIBER_MODE: rpc
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: file:/app/data/dev.db
+      AUTH_SECRET: ${AUTH_SECRET:?generate one with: npx auth secret}
+      AUTH_TRUST_HOST: "true"
+      AUTH_URL: https://${DOMAIN}
+      FIBER_MODE: rpc
+      FIBER_RPC_URL: http://fiber-a:8227
+      FIBER_PAYOUT_PUBKEY: ${FIBER_PAYOUT_PUBKEY:-}
+      FIBER_PAYOUT_ADDR: ${FIBER_PAYOUT_ADDR:-}
+      FIBER_PAYMENT_SHANNONS: ${FIBER_PAYMENT_SHANNONS:-100000000}
+      FIBER_CKB_RPC_URL: ${FIBER_CKB_RPC_URL:-https://testnet.ckbapp.dev/}
+      FIBER_PAYER_LOCK_ARG: ${FIBER_PAYER_LOCK_ARG:-}
+      FIBER_PAYER_LOCK_CODE_HASH: ${FIBER_PAYER_LOCK_CODE_HASH:-0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8}
+    volumes:
+      - payroll-data:/app/data
+    depends_on:
+      - fiber-a
+    networks: [payroll]
+
+  # Employer node — the company treasury the app pays from.
+  fiber-a:
+    image: ${FIBER_IMAGE:-nervos/fiber:latest}
+    restart: unless-stopped
+    environment:
+      FIBER_SECRET_KEY_PASSWORD: ${FIBER_A_KEY_PASSWORD:?set FIBER_A_KEY_PASSWORD in .env}
+      RUST_LOG: info
+    volumes:
+      - ./deploy/fiber/a:/fiber
+    networks: [payroll]
+    # No published ports: RPC stays internal, P2P dials out to bootnodes.
+
+  # Payout node — receives employee payments in the demo.
+  fiber-b:
+    image: ${FIBER_IMAGE:-nervos/fiber:latest}
+    restart: unless-stopped
+    environment:
+      FIBER_SECRET_KEY_PASSWORD: ${FIBER_B_KEY_PASSWORD:?set FIBER_B_KEY_PASSWORD in .env}
+      RUST_LOG: info
+    volumes:
+      - ./deploy/fiber/b:/fiber
+    networks: [payroll]
+
+volumes:
+  payroll-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  payroll:

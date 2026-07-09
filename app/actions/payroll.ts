@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { cuid } from "@/lib/utils";
-import { toStablecoin, DEFAULT_TAX_RATE } from "@/lib/constants";
+import { toPayoutCkb, DEFAULT_TAX_RATE, PAYOUT_ASSET } from "@/lib/constants";
 import { executeBatch, retryItem, syncBatch } from "@/lib/fiber/service";
 
 /** Create a DRAFT payroll batch with one item per selected employee. */
@@ -18,7 +18,8 @@ export async function createPayroll(input: { employeeIds: string[]; month: strin
   });
   if (!employees.length) return { ok: false, error: "No valid employees." };
 
-  const stablecoin = user.company.defaultStablecoin;
+  // Payroll settles natively in CKB — the amount recorded is the amount sent.
+  const stablecoin = PAYOUT_ASSET;
 
   // Next sequence number for the month. `reference` is globally unique, so
   // derive it from the highest existing reference (counting per-company breaks
@@ -36,7 +37,7 @@ export async function createPayroll(input: { employeeIds: string[]; month: strin
     const gross = e.salaryAmount;
     const tax = Math.round(gross * DEFAULT_TAX_RATE * 100) / 100;
     const net = gross - tax;
-    const stablecoinAmount = toStablecoin(net, e.currency);
+    const stablecoinAmount = toPayoutCkb(net, e.currency);
     total += stablecoinAmount;
     return {
       id: cuid(),

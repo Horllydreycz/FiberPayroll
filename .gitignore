@@ -37,6 +37,9 @@ yarn-error.log*
 prisma/dev.db
 prisma/dev.db-journal
 
+# fiber node keys + channel state — never commit (this is the wallet)
+deploy/fiber/
+
 # vercel
 .vercel
 

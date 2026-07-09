@@ -44,10 +44,10 @@ export function Sidebar() {
               key={href}
               href={href}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                 active
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                  ? "bg-accent text-foreground"
+                  : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
               )}
             >
               <Icon className="h-[18px] w-[18px]" />
@@ -57,12 +57,12 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="m-3 rounded-xl border bg-gradient-to-br from-primary/8 to-violet-500/5 p-4">
-        <div className="mb-1 flex items-center gap-1.5 text-sm font-semibold">
-          <Sparkles className="h-4 w-4 text-primary" /> Powered by Fiber
+      <div className="m-3 rounded-lg border bg-card p-4">
+        <div className="mb-1 flex items-center gap-1.5 text-sm font-medium">
+          <Sparkles className="h-3.5 w-3.5 text-muted-foreground" /> Powered by Fiber
         </div>
-        <p className="text-xs text-muted-foreground">
-          Instant stablecoin settlement over Nervos CKB payment channels.
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Instant settlement over Nervos CKB payment channels.
         </p>
       </div>
     </aside>

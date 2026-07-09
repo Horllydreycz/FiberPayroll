@@ -4,16 +4,14 @@
 
 import { prisma } from "@/lib/prisma";
 import { cuid } from "@/lib/utils";
+import { getCkbUsdPrice } from "@/lib/price";
 import { fiber } from "./index";
 import type { FiberPaymentStatus } from "./types";
 import type { ItemStatus, SettlementStage } from "@/lib/constants";
 
-const SHANNONS_PER_CKB = 1e8;
-
-/** Real CKB cost of one payroll item in the live keysend demo. */
-function perPaymentCkb() {
-  return Number(BigInt(process.env.FIBER_PAYMENT_SHANNONS ?? "100000000")) / SHANNONS_PER_CKB;
-}
+// A payment that hasn't reached a terminal state within this window is marked
+// FAILED (and becomes retryable) instead of pending forever.
+const PAYMENT_TIMEOUT_MS = 60_000;
 
 export type Treasury =
   | { live: true; onchainCkb: number; channelCkb: number; totalCkb: number }
@@ -35,34 +33,34 @@ export async function getTreasury(companyId: string): Promise<Treasury> {
 }
 
 /**
- * Throw if the treasury can't cover `itemCount` payments. In rpc mode the
- * spendable amount is the node's channel outbound liquidity (that's what
- * actually moves over Fiber); in simulated mode it's the DB balance.
+ * Throw if the treasury can't cover the payments. Amounts are CKB — payroll is
+ * CKB-native, so the recorded amount IS what moves over the channel. In rpc
+ * mode the spendable amount is the node's channel outbound liquidity; in
+ * simulated mode it's the DB balance.
  */
 async function assertSufficientFunds(
   companyId: string,
   itemCount: number,
-  stablecoinTotal: number,
-  stablecoin: string,
+  totalCkb: number,
+  asset: string,
 ) {
   if (itemCount <= 0) return;
   const f = fiber();
   if (f.mode === "rpc" && f.getBalance) {
     const bal = await f.getBalance();
-    const required = itemCount * perPaymentCkb();
     const available = bal?.channelCkb ?? 0;
-    if (available < required) {
+    if (available < totalCkb) {
       throw new Error(
         available === 0
           ? "Insufficient funds: the company node has no spendable channel balance (node offline or channel unfunded)."
-          : `Insufficient funds: ${itemCount} payment(s) need ${required} CKB of channel liquidity, but the company node only has ${available.toFixed(4)} CKB spendable.`,
+          : `Insufficient funds: ${itemCount} payment(s) total ${totalCkb.toFixed(4)} CKB, but the company node only has ${available.toFixed(4)} CKB of channel liquidity.`,
       );
     }
   } else {
     const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId } });
-    if (company.balance < stablecoinTotal) {
+    if (company.balance < totalCkb) {
       throw new Error(
-        `Insufficient treasury balance: need ${stablecoinTotal.toFixed(2)} ${stablecoin}, have ${company.balance.toFixed(2)} ${stablecoin}.`,
+        `Insufficient treasury balance: need ${totalCkb.toFixed(2)} ${asset}, have ${company.balance.toFixed(2)} ${asset}.`,
       );
     }
   }
@@ -249,13 +247,44 @@ export async function syncBatch(batchId: string) {
   });
 
   const f = fiber();
+  // One spot price per sync pass — stamped onto payments as they settle.
+  const ckbUsd = await getCkbUsdPrice();
 
   for (const item of batch.items) {
     const payment = item.payment;
     if (!payment) continue;
-    if (payment.status === "SUCCESS" || payment.status === "FAILED") continue;
+    if (payment.status === "SUCCESS" || payment.status === "FAILED") {
+      // Backfill the USD valuation if this payment settled before pricing
+      // existed (or CoinGecko was down at settlement time).
+      if (payment.status === "SUCCESS" && payment.usdAmount == null && ckbUsd != null) {
+        await prisma.payment.update({
+          where: { id: payment.id },
+          data: { usdRate: ckbUsd, usdAmount: payment.amount * ckbUsd },
+        });
+      }
+      continue;
+    }
 
     const remote = await f.getPayment(payment.paymentHash);
+
+    // Timeout: still not settled or failed after 60s since the last state
+    // change (updatedAt resets on retry, so retries get a fresh window).
+    if (
+      remote.status !== "SUCCESS" &&
+      remote.status !== "FAILED" &&
+      Date.now() - payment.updatedAt.getTime() > PAYMENT_TIMEOUT_MS
+    ) {
+      const reason = `Timed out — no settlement within ${PAYMENT_TIMEOUT_MS / 1000}s`;
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: "FAILED", failedReason: reason },
+      });
+      await prisma.payrollItem.update({ where: { id: item.id }, data: { status: "FAILED" } });
+      await addEvent(payment.id, "FAILED", reason);
+      await notify(batch.companyId, "error", "Payment timed out", `${item.employee.fullName}: ${reason}`);
+      continue;
+    }
+
     if (remote.status === payment.status) continue;
 
     const stages = payment.events.map((e) => e.stage);
@@ -276,6 +305,10 @@ export async function syncBatch(batchId: string) {
         fee: remote.fee || payment.fee,
         failedReason: remote.failedReason,
         settledAt: remote.status === "SUCCESS" ? new Date() : null,
+        // Stamp the USD value of the payout at settlement time.
+        ...(remote.status === "SUCCESS" && ckbUsd != null
+          ? { usdRate: ckbUsd, usdAmount: payment.amount * ckbUsd }
+          : {}),
       },
     });
 

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { toStablecoin, DEFAULT_TAX_RATE } from "../lib/constants";
+import { toPayoutCkb, DEFAULT_TAX_RATE } from "../lib/constants";
 
 const prisma = new PrismaClient();
 
@@ -38,8 +38,8 @@ async function main() {
       id: cuid(),
       name: "Acme Global Inc.",
       country: "United States",
-      defaultCurrency: "USD",
-      defaultStablecoin: "RUSD",
+      defaultCurrency: "CKB",
+      defaultStablecoin: "CKB",
       timezone: "America/New_York",
       fiberNodePubkey: "03b6a27c8...acme-treasury-node",
       balance: 480_000,
@@ -68,19 +68,20 @@ async function main() {
     ],
   });
 
+  // Salaries in CKB, sized so a full payroll run fits a small testnet channel.
   const people = [
-    ["Maria Silva", "Brazil", "BRL", "Senior Engineer", "Engineering", 9500],
-    ["Chidi Okafor", "Nigeria", "NGN", "Backend Engineer", "Engineering", 6500],
-    ["Priya Nair", "India", "INR", "Product Designer", "Design", 5200],
-    ["James Whitfield", "United Kingdom", "GBP", "Engineering Manager", "Engineering", 11000],
-    ["Lena Müller", "Germany", "EUR", "Data Scientist", "Data", 8800],
-    ["Carlos Mendoza", "Mexico", "USD", "DevOps Engineer", "Engineering", 7800],
-    ["Aisha Bello", "Nigeria", "NGN", "Frontend Engineer", "Engineering", 6000],
-    ["Sophie Laurent", "France", "EUR", "Marketing Lead", "Marketing", 7200],
-    ["Daniel Kim", "South Korea", "USD", "Mobile Engineer", "Engineering", 8200],
-    ["Olivia Brown", "United States", "USD", "Head of People", "Operations", 9800],
-    ["Rahul Sharma", "India", "INR", "QA Engineer", "Engineering", 4800],
-    [" Throwaway", "United States", "USD", "Contractor", "Engineering", 6000],
+    ["Maria Silva", "Brazil", "BRL", "Senior Engineer", "Engineering", 9.5],
+    ["Chidi Okafor", "Nigeria", "NGN", "Backend Engineer", "Engineering", 6.5],
+    ["Priya Nair", "India", "INR", "Product Designer", "Design", 5.2],
+    ["James Whitfield", "United Kingdom", "GBP", "Engineering Manager", "Engineering", 11],
+    ["Lena Müller", "Germany", "EUR", "Data Scientist", "Data", 8.8],
+    ["Carlos Mendoza", "Mexico", "USD", "DevOps Engineer", "Engineering", 7.8],
+    ["Aisha Bello", "Nigeria", "NGN", "Frontend Engineer", "Engineering", 6],
+    ["Sophie Laurent", "France", "EUR", "Marketing Lead", "Marketing", 7.2],
+    ["Daniel Kim", "South Korea", "USD", "Mobile Engineer", "Engineering", 8.2],
+    ["Olivia Brown", "United States", "USD", "Head of People", "Operations", 9.8],
+    ["Rahul Sharma", "India", "INR", "QA Engineer", "Engineering", 4.8],
+    [" Throwaway", "United States", "USD", "Contractor", "Engineering", 6],
   ] as const;
 
   const employees = [];
@@ -97,7 +98,7 @@ async function main() {
         walletAddress: wallet(),
         preferredStablecoin: pick(["RUSD", "USDI", "USDC"]),
         salaryAmount: salary,
-        currency: "USD", // salaries denominated in USD for the demo
+        currency: "CKB", // CKB-native payroll — the amount shown is the amount sent
         paymentFrequency: "MONTHLY",
         employmentType: jobTitle === "Contractor" ? "CONTRACTOR" : "FULL_TIME",
         taxId: `TAX-${Math.floor(100000 + Math.random() * 899999)}`,
@@ -119,7 +120,7 @@ async function main() {
       reference: `PR-${monthKey}-001`,
       payrollMonth: monthKey,
       status: "COMPLETED",
-      stablecoin: "RUSD",
+      stablecoin: "CKB",
       createdByName: "Femi Finance",
       approvedAt: lastMonth,
       completedAt: new Date(lastMonth.getTime() + 1000 * 60 * 4),
@@ -134,7 +135,7 @@ async function main() {
     const gross = emp.salaryAmount;
     const tax = Math.round(gross * DEFAULT_TAX_RATE * 100) / 100;
     const net = gross - tax;
-    const stableAmt = toStablecoin(net, emp.currency);
+    const stableAmt = toPayoutCkb(net, emp.currency);
     total += stableAmt;
 
     const item = await prisma.payrollItem.create({
@@ -145,7 +146,7 @@ async function main() {
         netAmount: net,
         currency: emp.currency,
         stablecoinAmount: stableAmt,
-        stablecoin: "RUSD",
+        stablecoin: "CKB",
         walletAddress: emp.walletAddress,
         status: "SETTLED",
         batchId: batch.id,
@@ -160,7 +161,7 @@ async function main() {
         paymentHash: "0x" + Array.from({ length: 64 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join(""),
         invoice: "fibt1" + Array.from({ length: 48 }, () => "0123456789abcdefghjkmnpqrstuvwxyz"[Math.floor(Math.random() * 33)]).join(""),
         amount: stableAmt,
-        stablecoin: "RUSD",
+        stablecoin: "CKB",
         status: "SUCCESS",
         fee: Math.round(stableAmt * 0.0002 * 100) / 100,
         routeHops: 1 + Math.floor(Math.random() * 3),

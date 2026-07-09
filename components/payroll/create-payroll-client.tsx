@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { createPayroll } from "@/app/actions/payroll";
-import { toStablecoin, DEFAULT_TAX_RATE } from "@/lib/constants";
+import { toPayoutCkb, DEFAULT_TAX_RATE } from "@/lib/constants";
 import { formatMoney, initials } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -52,7 +52,7 @@ export function CreatePayrollClient({
     setSelected(allSelected ? new Set() : new Set(employees.map((e) => e.id)));
 
   const net = (e: SelectableEmployee) => e.salaryAmount * (1 - DEFAULT_TAX_RATE);
-  const stableFor = (e: SelectableEmployee) => toStablecoin(net(e), e.currency);
+  const stableFor = (e: SelectableEmployee) => toPayoutCkb(net(e), e.currency);
 
   const total = employees
     .filter((e) => selected.has(e.id))
@@ -132,7 +132,7 @@ export function CreatePayrollClient({
             <div className="space-y-2 rounded-lg border bg-muted/30 p-4">
               <Row label="Employees" value={String(selected.size)} />
               <Row label="Tax withheld" value={`${DEFAULT_TAX_RATE * 100}%`} />
-              <Row label="Stablecoin" value={stablecoin} />
+              <Row label="Paid in" value={stablecoin} />
               <div className="my-2 h-px bg-border" />
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Total payout</span>

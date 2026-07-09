@@ -5,18 +5,27 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** Format a stablecoin / fiat amount for display. */
+/**
+ * Format a payroll amount. Payroll is CKB-native, so the default (and any
+ * explicit "CKB") renders as CKB; fiat codes render as currency.
+ */
 export function formatMoney(
   amount: number,
-  currency = "USD",
+  currency = "CKB",
   opts: Intl.NumberFormatOptions = {},
 ) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-    ...opts,
-  }).format(amount);
+  if (currency === "CKB") return formatCkb(amount);
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2,
+      ...opts,
+    }).format(amount);
+  } catch {
+    // Non-ISO codes (e.g. legacy "RUSD" records) — plain number + code.
+    return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(amount)} ${currency}`;
+  }
 }
 
 /** Format a CKB amount, e.g. "1,234.5678 CKB". */

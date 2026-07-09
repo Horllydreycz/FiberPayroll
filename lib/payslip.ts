@@ -23,6 +23,10 @@ export interface PayslipData {
   currency: string;
   stablecoinAmount: number;
   stablecoin: string;
+  /** USD value of the payout, captured at settlement time (CoinGecko). */
+  usdAmount?: number | null;
+  /** CKB/USD rate at settlement time. */
+  usdRate?: number | null;
   txHash: string;
   paidAt: Date | null;
 }
@@ -90,7 +94,25 @@ export async function buildPayslipPdf(d: PayslipData): Promise<Uint8Array> {
         h(View, { style: s.line }, h(Text, {}, "Tax withheld"), h(Text, {}, "-" + formatMoney(d.tax, d.currency))),
         h(View, { style: s.sep }),
         h(View, { style: s.line }, h(Text, { style: s.bold }, "Net pay"), h(Text, { style: s.net }, formatMoney(d.net, d.currency))),
-        h(View, { style: [s.line, { marginTop: 4 }] }, h(Text, { style: s.muted }, "Paid in " + d.stablecoin), h(Text, { style: s.bold }, formatMoney(d.stablecoinAmount) + " " + d.stablecoin)),
+        h(
+          View,
+          { style: [s.line, { marginTop: 4 }] },
+          h(Text, { style: s.muted }, "Paid in " + d.stablecoin),
+          h(
+            Text,
+            { style: s.bold },
+            formatMoney(d.stablecoinAmount, d.stablecoin) +
+              (d.usdAmount != null ? "  (≈ " + formatMoney(d.usdAmount, "USD") + ")" : ""),
+          ),
+        ),
+        d.usdRate != null
+          ? h(
+              View,
+              { style: s.line },
+              h(Text, { style: s.muted }, "CKB/USD rate at settlement"),
+              h(Text, { style: s.muted }, "$" + d.usdRate.toFixed(6) + " (CoinGecko)"),
+            )
+          : null,
       ),
 
       // Payment proof + QR
