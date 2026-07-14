@@ -40,9 +40,24 @@ prisma/dev.db-journal
 # fiber node keys + channel state — never commit (this is the wallet)
 deploy/fiber/
 
+# hackathon submission notes — keep private
+SUBMISSION.md
+SPEECH.md
+SPEECH.pdf
+VIDEO_SCRIPT.md
+SPEECH.pdf
+
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# deployment artifacts - never commit
+*.tar
+*.tar.gz
+fp-image*
+fp2*
+
+VIDEO_SCRIPT.pdf

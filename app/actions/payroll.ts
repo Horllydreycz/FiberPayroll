@@ -4,12 +4,28 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { cuid } from "@/lib/utils";
-import { toPayoutCkb, DEFAULT_TAX_RATE, PAYOUT_ASSET } from "@/lib/constants";
+import {
+  toPayoutAsset,
+  ckbEquivalent,
+  DEFAULT_TAX_RATE,
+  PAYOUT_ASSET,
+  STABLECOINS,
+} from "@/lib/constants";
 import { executeBatch, retryItem, syncBatch } from "@/lib/fiber/service";
+import { getCkbPerUsd } from "@/lib/price";
+
+// Payroll actions move money — viewers are read-only.
+const FINANCE_ROLES = ["ADMIN", "FINANCE_MANAGER"];
+const ROLE_ERROR = "Your role is view-only — ask an admin or finance manager.";
+async function requireFinance() {
+  const user = await requireUser();
+  return FINANCE_ROLES.includes(user.role) ? user : null;
+}
 
 /** Create a DRAFT payroll batch with one item per selected employee. */
 export async function createPayroll(input: { employeeIds: string[]; month: string }) {
-  const user = await requireUser();
+  const user = await requireFinance();
+  if (!user) return { ok: false, error: ROLE_ERROR };
   const { employeeIds, month } = input;
   if (!employeeIds.length) return { ok: false, error: "Select at least one employee." };
 
@@ -18,8 +34,11 @@ export async function createPayroll(input: { employeeIds: string[]; month: strin
   });
   if (!employees.length) return { ok: false, error: "No valid employees." };
 
-  // Payroll settles natively in CKB — the amount recorded is the amount sent.
-  const stablecoin = PAYOUT_ASSET;
+  // Each item is denominated in the employee's payout asset; settlement over
+  // the channel is the CKB equivalent at the LIVE CoinGecko rate.
+  const ckbPerUsd = await getCkbPerUsd();
+  const assetFor = (preferred: string) =>
+    (STABLECOINS as readonly string[]).includes(preferred) ? preferred : PAYOUT_ASSET;
 
   // Next sequence number for the month. `reference` is globally unique, so
   // derive it from the highest existing reference (counting per-company breaks
@@ -34,11 +53,12 @@ export async function createPayroll(input: { employeeIds: string[]; month: strin
 
   let total = 0;
   const items = employees.map((e) => {
+    const asset = assetFor(e.preferredStablecoin);
     const gross = e.salaryAmount;
     const tax = Math.round(gross * DEFAULT_TAX_RATE * 100) / 100;
     const net = gross - tax;
-    const stablecoinAmount = toPayoutCkb(net, e.currency);
-    total += stablecoinAmount;
+    const stablecoinAmount = toPayoutAsset(net, e.currency, asset, ckbPerUsd);
+    total += ckbEquivalent(stablecoinAmount, asset, ckbPerUsd);
     return {
       id: cuid(),
       grossAmount: gross,
@@ -46,12 +66,16 @@ export async function createPayroll(input: { employeeIds: string[]; month: strin
       netAmount: net,
       currency: e.currency,
       stablecoinAmount,
-      stablecoin,
+      stablecoin: asset,
       walletAddress: e.walletAddress,
       status: "PENDING",
       employeeId: e.id,
     };
   });
+
+  // Single asset if uniform, otherwise a mixed-asset run (total stays in CKB).
+  const assets = [...new Set(items.map((it) => it.stablecoin))];
+  const stablecoin = assets.length === 1 ? assets[0] : "MULTI";
 
   // Create, bumping the sequence if a concurrent run grabbed the reference.
   let batch;
@@ -89,8 +113,24 @@ export async function createPayroll(input: { employeeIds: string[]; month: strin
   return { ok: true, id: batch.id };
 }
 
+/** One click: recreate a run's employee set as a fresh draft for this month. */
+export async function duplicatePayrollAction(batchId: string) {
+  const user = await requireFinance();
+  if (!user) return { ok: false, error: ROLE_ERROR };
+  const batch = await prisma.payrollBatch.findFirst({
+    where: { id: batchId, companyId: user.companyId },
+    include: { items: { select: { employeeId: true } } },
+  });
+  if (!batch) return { ok: false, error: "Not found" };
+  const now = new Date();
+  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  // Re-runs the normal generator: fresh salaries, assets and FX for each employee.
+  return createPayroll({ employeeIds: batch.items.map((i) => i.employeeId), month });
+}
+
 export async function approvePayroll(batchId: string) {
-  const user = await requireUser();
+  const user = await requireFinance();
+  if (!user) return { ok: false, error: ROLE_ERROR };
   const batch = await prisma.payrollBatch.findFirst({ where: { id: batchId, companyId: user.companyId } });
   if (!batch) return { ok: false, error: "Not found" };
   if (batch.status !== "DRAFT") return { ok: false, error: "Only drafts can be approved." };
@@ -107,7 +147,8 @@ export async function approvePayroll(batchId: string) {
 }
 
 export async function executePayrollAction(batchId: string) {
-  const user = await requireUser();
+  const user = await requireFinance();
+  if (!user) return { ok: false, error: ROLE_ERROR };
   const batch = await prisma.payrollBatch.findFirst({ where: { id: batchId, companyId: user.companyId } });
   if (!batch) return { ok: false, error: "Not found" };
   try {
@@ -119,8 +160,33 @@ export async function executePayrollAction(batchId: string) {
   return { ok: true };
 }
 
+/** Retry every failed payroll item for the company (funds-gated per item). */
+export async function retryAllFailedAction() {
+  const user = await requireFinance();
+  if (!user) return { ok: false, retried: 0, errors: 1, error: ROLE_ERROR };
+  const failed = await prisma.payrollItem.findMany({
+    where: { status: "FAILED", batch: { companyId: user.companyId } },
+    select: { id: true },
+  });
+  let retried = 0;
+  let errors = 0;
+  let firstError: string | null = null;
+  for (const it of failed) {
+    try {
+      await retryItem(it.id, user.name);
+      retried++;
+    } catch (e) {
+      errors++;
+      firstError ??= (e as Error).message;
+    }
+  }
+  revalidatePath("/dashboard");
+  return { ok: true, retried, errors, error: firstError };
+}
+
 export async function retryPaymentAction(itemId: string) {
-  const user = await requireUser();
+  const user = await requireFinance();
+  if (!user) return { ok: false, error: ROLE_ERROR };
   try {
     await retryItem(itemId, user.name);
   } catch (e) {
@@ -135,7 +201,8 @@ export async function syncPayrollAction(batchId: string) {
 }
 
 export async function cancelPayroll(batchId: string) {
-  const user = await requireUser();
+  const user = await requireFinance();
+  if (!user) return { ok: false, error: ROLE_ERROR };
   const batch = await prisma.payrollBatch.findFirst({ where: { id: batchId, companyId: user.companyId } });
   if (!batch) return { ok: false, error: "Not found" };
   if (!["DRAFT", "APPROVED"].includes(batch.status)) return { ok: false, error: "Cannot cancel this run." };

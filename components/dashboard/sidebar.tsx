@@ -2,35 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Users,
-  Wallet,
-  Radio,
-  BarChart3,
-  Bell,
-  Settings,
-  Sparkles,
-} from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { Logo } from "@/components/logo";
+import { NAV } from "@/lib/nav";
 import { cn } from "@/lib/utils";
-
-const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/dashboard/employees", label: "Employees", icon: Users },
-  { href: "/dashboard/payroll", label: "Payroll", icon: Wallet },
-  { href: "/dashboard/settlements", label: "Settlements", icon: Radio },
-  { href: "/dashboard/reports", label: "Reports", icon: BarChart3 },
-  { href: "/dashboard/notifications", label: "Notifications", icon: Bell },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
-];
 
 export function Sidebar() {
   const pathname = usePathname();
 
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r bg-sidebar md:flex">
-      <div className="flex h-16 items-center border-b px-5">
+      <div className="flex h-[72px] items-center border-b px-5">
         <Link href="/dashboard">
           <Logo />
         </Link>

@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireCompanyId } from "@/lib/session";
+import { ckbEquivalent } from "@/lib/constants";
+import { getCkbPerUsd } from "@/lib/price";
 import { formatMoney, formatDate, shortHash, explorerTxUrl } from "@/lib/utils";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
@@ -39,7 +41,11 @@ export default async function SettlementsPage() {
   const settled = payments.filter((p) => p.status === "SUCCESS");
   const pending = payments.filter((p) => p.status === "CREATED" || p.status === "INFLIGHT");
   const failed = payments.filter((p) => p.status === "FAILED");
-  const totalPaid = settled.reduce((s, p) => s + p.amount, 0);
+  const ckbPerUsd = await getCkbPerUsd();
+  const totalPaid = settled.reduce(
+    (s, p) => s + ckbEquivalent(p.amount, p.stablecoin, ckbPerUsd),
+    0,
+  );
   const totalFees = settled.reduce((s, p) => s + p.fee, 0);
   const successRate = payments.length
     ? Math.round((settled.length / payments.length) * 100)
@@ -109,7 +115,7 @@ export default async function SettlementsPage() {
                     {p.payrollItem.batch.reference}
                   </TableCell>
                   <TableCell className="text-right text-sm font-medium">
-                    {formatMoney(p.amount)}
+                    {formatMoney(p.amount, p.stablecoin)}
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {shortHash(p.paymentHash)}

@@ -135,7 +135,7 @@ export function EmployeeFormDialog({
             <Field label="Currency">
               <Pick value={form.currency} onChange={(v) => set("currency", v)} options={[...CURRENCY_OPTIONS]} />
             </Field>
-            <Field label="Stablecoin">
+            <Field label="Payout asset">
               <Pick value={form.preferredStablecoin} onChange={(v) => set("preferredStablecoin", v)} options={[...STABLECOINS]} />
             </Field>
           </div>

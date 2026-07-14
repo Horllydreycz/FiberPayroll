@@ -11,6 +11,7 @@ export function StatCard({
   delta,
   trend,
   alert,
+  hero = false,
 }: {
   label: string;
   value: string;
@@ -23,6 +24,8 @@ export function StatCard({
   trend?: number[];
   /** Exception callout — draws attention with a warning border + message. */
   alert?: string;
+  /** Flagship styling — deep emerald gradient card with inverted text. */
+  hero?: boolean;
 }) {
   // Corporate register: icons stay neutral; only true semantics get color.
   const accentMap = {
@@ -32,12 +35,21 @@ export function StatCard({
     destructive: "border bg-background text-destructive",
   };
   return (
-    <Card className={cn("p-5", alert && "border-warning/70")}>
+    <Card
+      className={cn(
+        "p-5",
+        alert && "border-warning/70",
+        hero &&
+          "border-transparent bg-gradient-to-br from-primary via-primary to-teal-800 text-primary-foreground",
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[13px] font-medium text-muted-foreground">{label}</p>
+          <p className={cn("text-[13px] font-medium", hero ? "text-primary-foreground/70" : "text-muted-foreground")}>
+            {label}
+          </p>
           <div className="mt-2 flex items-baseline gap-2">
-            <p className="truncate text-2xl font-semibold tracking-tight">{value}</p>
+            <p className="truncate font-mono text-2xl font-semibold tracking-tight">{value}</p>
             {delta && (
               <span
                 className={cn(
@@ -51,14 +63,25 @@ export function StatCard({
               </span>
             )}
           </div>
-          {sub && <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{sub}</p>}
+          {sub && (
+            <p className={cn("mt-1.5 text-xs leading-relaxed", hero ? "text-primary-foreground/70" : "text-muted-foreground")}>
+              {sub}
+            </p>
+          )}
         </div>
-        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", accentMap[accent])}>
+        <div
+          className={cn(
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+            hero ? "bg-white/15 text-primary-foreground" : accentMap[accent],
+          )}
+        >
           <Icon className="h-4 w-4" />
         </div>
       </div>
       {trend && trend.length > 1 && <Sparkline data={trend} />}
-      {alert && <p className="mt-3 text-xs font-medium text-warning">{alert}</p>}
+      {alert && (
+        <p className={cn("mt-3 text-xs font-medium", hero ? "text-amber-200" : "text-warning")}>{alert}</p>
+      )}
     </Card>
   );
 }

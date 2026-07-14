@@ -51,9 +51,10 @@ export const SETTLEMENT_STAGES = [
 ] as const;
 export type SettlementStage = (typeof SETTLEMENT_STAGES)[number];
 
-// Payout assets. Payroll settles natively in CKB over Fiber; the stablecoins
-// are UDTs whitelisted on CKB (future work — needs a UDT channel).
-export const STABLECOINS = ["CKB", "RUSD", "USDI", "USDC"] as const;
+// Payout assets an employee can choose. CKB settles natively over the Fiber
+// channel; USDC/USDT are denominated in the asset and settled as their CKB
+// equivalent at the demo FX rate (native UDT channels are future work).
+export const STABLECOINS = ["CKB", "USDC", "USDT"] as const;
 export type Stablecoin = (typeof STABLECOINS)[number];
 
 /** The asset actually sent over the Fiber channel. */
@@ -75,17 +76,43 @@ export const FX_TO_USD: Record<string, number> = {
   BRL: 0.18,
 };
 
-// Demo rate: CKB bought by 1 USD (static for the hackathon).
+// Fallback CKB/USD rate, used ONLY when the live CoinGecko price is
+// unavailable. Live rate comes from lib/price.ts (getCkbPerUsd).
 export const CKB_PER_USD = 250;
 
 /**
  * Convert a salary into the CKB amount that is actually paid over Fiber.
- * CKB salaries pass through unchanged; fiat is converted at demo rates.
+ * CKB salaries pass through unchanged; fiat converts via USD at `ckbPerUsd`
+ * (live CoinGecko rate, falling back to CKB_PER_USD).
  */
-export function toPayoutCkb(amount: number, currency: string): number {
+export function toPayoutCkb(amount: number, currency: string, ckbPerUsd: number): number {
   if (currency === "CKB" || !currency) return Math.round(amount * 1e4) / 1e4;
   const usd = amount * (FX_TO_USD[currency] ?? 1);
-  return Math.round(usd * CKB_PER_USD * 1e4) / 1e4;
+  return Math.round(usd * ckbPerUsd * 1e4) / 1e4;
+}
+
+/**
+ * Convert a net salary (in `currency`) into the employee's chosen payout
+ * asset. USDC/USDT are treated as USD-pegged 1:1.
+ */
+export function toPayoutAsset(
+  amount: number,
+  currency: string,
+  asset: string,
+  ckbPerUsd: number,
+): number {
+  if (asset === "CKB") return toPayoutCkb(amount, currency, ckbPerUsd);
+  const usd = currency === "CKB" ? amount / ckbPerUsd : amount * (FX_TO_USD[currency] ?? 1);
+  return Math.round(usd * 100) / 100;
+}
+
+/**
+ * CKB actually settled over the channel for an amount in a payout asset.
+ * Identity for CKB; USD-pegged assets convert at `ckbPerUsd`.
+ */
+export function ckbEquivalent(amount: number, asset: string, ckbPerUsd: number): number {
+  if (asset === "CKB" || !asset) return amount;
+  return Math.round(amount * ckbPerUsd * 1e4) / 1e4;
 }
 
 // Simple flat tax estimate for payslip breakdown (demo only).

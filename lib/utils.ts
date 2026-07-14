@@ -28,9 +28,14 @@ export function formatMoney(
   }
 }
 
-/** Format a CKB amount, e.g. "1,234.5678 CKB". */
-export function formatCkb(ckb: number, maxFrac = 4) {
-  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: maxFrac }).format(ckb)} CKB`;
+/**
+ * Format a CKB amount, e.g. "1,234.56 CKB". Precision adapts to magnitude so
+ * large balances don't truncate in cards: 4 decimals under 100, 2 up to 10k,
+ * whole numbers above that.
+ */
+export function formatCkb(ckb: number, maxFrac?: number) {
+  const frac = maxFrac ?? (Math.abs(ckb) >= 1_000 ? 0 : Math.abs(ckb) >= 100 ? 2 : 4);
+  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: frac }).format(ckb)} CKB`;
 }
 
 /** Compact number, e.g. 12.5k */

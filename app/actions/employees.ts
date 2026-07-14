@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireRole } from "@/lib/session";
 import { cuid } from "@/lib/utils";
 
 const employeeSchema = z.object({
@@ -13,9 +13,9 @@ const employeeSchema = z.object({
   jobTitle: z.string().optional(),
   department: z.string().optional(),
   walletAddress: z.string().min(6),
-  preferredStablecoin: z.string().default("RUSD"),
+  preferredStablecoin: z.string().default("CKB"),
   salaryAmount: z.coerce.number().positive(),
-  currency: z.string().default("USD"),
+  currency: z.string().default("CKB"),
   paymentFrequency: z.string().default("MONTHLY"),
   employmentType: z.string().default("FULL_TIME"),
   taxId: z.string().optional(),
@@ -26,7 +26,7 @@ const employeeSchema = z.object({
 export type EmployeeInput = z.infer<typeof employeeSchema>;
 
 export async function createEmployee(data: EmployeeInput) {
-  const user = await requireUser();
+  const user = await requireRole("ADMIN", "FINANCE_MANAGER");
   const parsed = employeeSchema.parse(data);
   await prisma.employee.create({
     data: { id: cuid(), ...parsed, companyId: user.companyId },
@@ -39,7 +39,7 @@ export async function createEmployee(data: EmployeeInput) {
 }
 
 export async function updateEmployee(id: string, data: EmployeeInput) {
-  const user = await requireUser();
+  const user = await requireRole("ADMIN", "FINANCE_MANAGER");
   const parsed = employeeSchema.parse(data);
   await prisma.employee.update({
     where: { id, companyId: user.companyId },
@@ -50,7 +50,7 @@ export async function updateEmployee(id: string, data: EmployeeInput) {
 }
 
 export async function deleteEmployee(id: string) {
-  const user = await requireUser();
+  const user = await requireRole("ADMIN", "FINANCE_MANAGER");
   const emp = await prisma.employee.findFirst({ where: { id, companyId: user.companyId } });
   if (!emp) return { ok: false, error: "Not found" };
   await prisma.employee.delete({ where: { id } });
@@ -68,9 +68,9 @@ const importRowSchema = z.object({
   jobTitle: z.string().optional().default(""),
   department: z.string().optional().default(""),
   walletAddress: z.string().min(1),
-  preferredStablecoin: z.string().optional().default("RUSD"),
+  preferredStablecoin: z.string().optional().default("CKB"),
   salaryAmount: z.coerce.number().positive(),
-  currency: z.string().optional().default("USD"),
+  currency: z.string().optional().default("CKB"),
   paymentFrequency: z.string().optional().default("MONTHLY"),
   employmentType: z.string().optional().default("FULL_TIME"),
   taxId: z.string().optional().default(""),
@@ -78,7 +78,7 @@ const importRowSchema = z.object({
 
 /** Bulk import pre-validated rows from the CSV preview. Skips duplicates by email. */
 export async function importEmployees(rows: unknown[]) {
-  const user = await requireUser();
+  const user = await requireRole("ADMIN", "FINANCE_MANAGER");
   const existing = await prisma.employee.findMany({
     where: { companyId: user.companyId },
     select: { email: true },

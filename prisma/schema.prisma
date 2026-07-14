@@ -19,7 +19,7 @@ model Company {
   logoUrl         String?
   country         String?
   defaultCurrency String   @default("USD")
-  defaultStablecoin String @default("RUSD")
+  defaultStablecoin String @default("CKB")
   timezone        String   @default("UTC")
   // Fiber node identity used to send payroll payments
   fiberNodePubkey String?
@@ -60,7 +60,7 @@ model Employee {
   jobTitle          String?
   department        String?
   walletAddress     String
-  preferredStablecoin String @default("RUSD")
+  preferredStablecoin String @default("CKB")
   salaryAmount      Float
   currency          String   @default("USD")
   paymentFrequency  String   @default("MONTHLY") // MONTHLY | BIWEEKLY | WEEKLY
@@ -88,7 +88,7 @@ model PayrollBatch {
   payrollMonth String // e.g. "2026-06"
   status       String   @default("DRAFT") // DRAFT | APPROVED | PROCESSING | COMPLETED | FAILED | CANCELLED
   totalAmount  Float    @default(0)
-  stablecoin   String   @default("RUSD")
+  stablecoin   String   @default("CKB")
   createdByName String?
   approvedAt   DateTime?
   completedAt  DateTime?
@@ -111,7 +111,7 @@ model PayrollItem {
   netAmount        Float
   currency         String  @default("USD")
   stablecoinAmount Float // converted amount actually sent
-  stablecoin       String  @default("RUSD")
+  stablecoin       String  @default("CKB")
   walletAddress    String
   status           String  @default("PENDING") // PENDING | BROADCASTING | PROCESSING | SETTLED | FAILED | EXPIRED | REFUNDED
 
@@ -136,7 +136,7 @@ model Payment {
   paymentHash   String  @unique // Fiber HTLC payment hash
   invoice       String? // encoded Fiber invoice the employee was paid against
   amount        Float
-  stablecoin    String  @default("RUSD")
+  stablecoin    String  @default("CKB")
   status        String  @default("CREATED") // CREATED | INFLIGHT | SUCCESS | FAILED
   fee           Float   @default(0)
   failedReason  String?

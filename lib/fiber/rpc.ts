@@ -11,6 +11,8 @@
 // only a fallback when an item has no amount. Set FIBER_RUSD_UDT_SCRIPT + an
 // invoice flow for stablecoin (UDT) payments.
 
+import { ckbEquivalent } from "@/lib/constants";
+import { getCkbPerUsd } from "@/lib/price";
 import type {
   CreateInvoiceParams,
   FiberAdapter,
@@ -132,12 +134,13 @@ export class RpcFiberAdapter implements FiberAdapter {
   async getBalance() {
     let channelShannons = BigInt(0);
     let onchainShannons = BigInt(0);
+    let nodeOk = true;
 
     try {
       const res = await this.call<{ channels: { local_balance: string }[] }>("list_channels", [{}]);
       for (const c of res.channels ?? []) channelShannons += BigInt(c.local_balance ?? 0);
     } catch {
-      /* node unreachable */
+      nodeOk = false; // node unreachable — channel liquidity unknown
     }
 
     const ckbRpc = process.env.FIBER_CKB_RPC_URL;
@@ -156,7 +159,7 @@ export class RpcFiberAdapter implements FiberAdapter {
             method: "get_cells_capacity",
             params: [{ script: { code_hash: codeHash, hash_type: "type", args: lockArg }, script_type: "lock" }],
           }),
-          signal: AbortSignal.timeout(15_000),
+          signal: AbortSignal.timeout(5_000),
         });
         const j = await r.json();
         if (j.result?.capacity) onchainShannons = BigInt(j.result.capacity);
@@ -167,7 +170,7 @@ export class RpcFiberAdapter implements FiberAdapter {
 
     const channelCkb = Number(channelShannons) / 1e8;
     const onchainCkb = Number(onchainShannons) / 1e8;
-    return { onchainCkb, channelCkb, totalCkb: onchainCkb + channelCkb };
+    return { onchainCkb, channelCkb, totalCkb: onchainCkb + channelCkb, nodeOk };
   }
 
   async ping() {
@@ -196,11 +199,13 @@ export class RpcFiberAdapter implements FiberAdapter {
     if (!this.payoutPubkey) {
       throw new Error("FIBER_PAYOUT_PUBKEY is not set for live (rpc) payments.");
     }
-    // CKB-native payroll: send the item's real amount. FIBER_PAYMENT_SHANNONS
-    // is only a fallback if an amount is missing.
+    // Send the item's real value. CKB amounts settle as-is; USD-pegged assets
+    // (USDC/USDT) settle as their CKB equivalent at the live CoinGecko rate.
+    // FIBER_PAYMENT_SHANNONS is only a fallback if an amount is missing.
+    const ckbAmount = ckbEquivalent(params.amount, params.stablecoin, await getCkbPerUsd());
     const shannons =
-      params.amount > 0
-        ? BigInt(Math.round(params.amount * 10 ** CKB_DECIMALS))
+      ckbAmount > 0
+        ? BigInt(Math.round(ckbAmount * 10 ** CKB_DECIMALS))
         : this.paymentShannons;
     const body = {
       target_pubkey: this.payoutPubkey,
@@ -252,7 +257,7 @@ export class RpcFiberAdapter implements FiberAdapter {
       paymentHash: result.payment_hash,
       status: mapStatus(result.status),
       amount: 0,
-      stablecoin: "RUSD",
+      stablecoin: "CKB",
       fee: ckbFromShannons(result.fee),
       failedReason: result.failed_error ?? undefined,
       routeHops: 1,

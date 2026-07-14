@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Fiber Payroll — Global payroll in stablecoins, in minutes",
+  title: "Fiber Payroll — Global payroll over Fiber, in minutes",
   description:
-    "Pay your global team in stablecoins over the Fiber Network. Upload payroll, approve, and settle worldwide in minutes.",
+    "Pay your global team over the Fiber Network. Upload payroll, approve, and settle worldwide in minutes.",
 };
 
 export default function RootLayout({

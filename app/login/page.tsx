@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { authenticate } from "@/app/actions/auth";
@@ -18,6 +18,8 @@ import {
 
 export default function LoginPage() {
   const [error, formAction, pending] = useActionState(authenticate, undefined);
+  // Controlled so the email survives a failed submit (only the password clears).
+  const [email, setEmail] = useState("");
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
@@ -40,8 +42,9 @@ export default function LoginPage() {
                   id="email"
                   name="email"
                   type="email"
-                  placeholder=""
-                  defaultValue="admin@fiberpayroll.dev"
+                  placeholder="you@company.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
                 />
               </div>
@@ -51,8 +54,7 @@ export default function LoginPage() {
                   id="password"
                   name="password"
                   type="password"
-                  placeholder=""
-                  defaultValue="password123"
+                  placeholder="••••••••"
                   required
                 />
               </div>
@@ -79,12 +81,6 @@ export default function LoginPage() {
             </p>
           </CardContent>
         </Card>
-        {/** 
-         * 
-        <p className="mt-4 text-center text-xs text-muted-foreground">
-          Demo: admin@fiberpayroll.dev · password123
-        </p>
-          */}
       </div>
     </div>
   );

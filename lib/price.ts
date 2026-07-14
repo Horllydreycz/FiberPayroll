@@ -2,6 +2,8 @@
 // Source: CoinGecko — https://www.coingecko.com/en/coins/nervos-network
 // (public API endpoint for the same data; cached to stay within rate limits)
 
+import { CKB_PER_USD } from "@/lib/constants";
+
 const COINGECKO_URL =
   "https://api.coingecko.com/api/v3/simple/price?ids=nervos-network&vs_currencies=usd";
 
@@ -16,7 +18,7 @@ export async function getCkbUsdPrice(): Promise<number | null> {
   if (cache && Date.now() - cache.at < TTL_MS) return cache.price;
   try {
     const res = await fetch(COINGECKO_URL, {
-      signal: AbortSignal.timeout(8_000),
+      signal: AbortSignal.timeout(4_000),
       headers: { accept: "application/json" },
     });
     if (!res.ok) return cache?.price ?? null;
@@ -28,6 +30,15 @@ export async function getCkbUsdPrice(): Promise<number | null> {
   } catch {
     return cache?.price ?? null;
   }
+}
+
+/**
+ * CKB bought by 1 USD, from the live CoinGecko price (cached 60s).
+ * Falls back to the static demo rate when the price is unavailable.
+ */
+export async function getCkbPerUsd(): Promise<number> {
+  const price = await getCkbUsdPrice();
+  return price && price > 0 ? 1 / price : CKB_PER_USD;
 }
 
 /** "≈ $1,234.56" helper for CKB amounts; null-safe when no price is known. */

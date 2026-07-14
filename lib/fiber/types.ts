@@ -66,6 +66,8 @@ export interface FiberAdapter {
     onchainCkb: number;
     channelCkb: number;
     totalCkb: number;
+    /** False when the Fiber node itself was unreachable. */
+    nodeOk: boolean;
   } | null>;
   createInvoice(params: CreateInvoiceParams): Promise<FiberInvoice>;
   sendPayment(params: SendPaymentParams): Promise<FiberPayment>;

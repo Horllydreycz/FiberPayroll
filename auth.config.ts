@@ -12,7 +12,16 @@ export const authConfig = {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
       const onDashboard = nextUrl.pathname.startsWith("/dashboard");
-      if (onDashboard) return isLoggedIn;
+      if (onDashboard && !isLoggedIn) {
+        // Redirect with a RELATIVE location + relative callbackUrl. The
+        // default builds an absolute URL from the server's internal hostname
+        // (e.g. https://0.0.0.0:3000), which breaks behind tunnels/proxies.
+        const callback = encodeURIComponent(nextUrl.pathname + nextUrl.search);
+        return new Response(null, {
+          status: 307,
+          headers: { Location: `/login?callbackUrl=${callback}` },
+        });
+      }
       return true;
     },
     jwt({ token, user }) {

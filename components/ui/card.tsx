@@ -5,7 +5,8 @@ function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        "rounded-xl border bg-card text-card-foreground shadow-sm",
+        // Frosted glass over the ambient mesh (prototype look); solid in dark.
+        "rounded-2xl border border-white/90 bg-white/70 text-card-foreground shadow-[0_16px_40px_-24px_oklch(0.4_0.03_162/0.35)] backdrop-blur-md dark:border-border dark:bg-card dark:shadow-sm",
         className,
       )}
       {...props}

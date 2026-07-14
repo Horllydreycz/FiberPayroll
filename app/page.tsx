@@ -33,7 +33,7 @@ export default function LandingPage() {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 md:px-6">
+        <div className="flex h-16 items-center justify-between px-5 md:px-8 lg:px-12">
           <Logo />
           <div className="flex items-center gap-2">
             <Button asChild variant="ghost">
@@ -55,12 +55,12 @@ export default function LandingPage() {
               <Zap className="h-3.5 w-3.5" /> Built on Nervos CKB · Fiber Network
             </Badge>
             <h1 className="mx-auto max-w-3xl text-balance text-4xl font-semibold tracking-tight md:text-6xl">
-              Global payroll in stablecoins,{" "}
+              Global payroll on Fiber,{" "}
               <span className="text-primary">completed in minutes</span>
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-pretty text-lg text-muted-foreground">
-              Upload your team, approve a payroll run, and pay everyone worldwide in stablecoins
-              over the Fiber Network — with live settlement tracking and audit-ready reports.
+              Upload your team, approve a payroll run, and pay everyone worldwide over Fiber
+              payment channels — with live settlement tracking and audit-ready reports.
             </p>
             <div className="mt-8 flex items-center justify-center gap-3">
               <Button asChild size="lg">
@@ -72,9 +72,6 @@ export default function LandingPage() {
                 <Link href="/login">View demo</Link>
               </Button>
             </div>
-            <p className="mt-4 text-xs text-muted-foreground">
-              Demo login: admin@fiberpayroll.dev · password123
-            </p>
           </div>
         </section>
 

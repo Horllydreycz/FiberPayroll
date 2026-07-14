@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { PAYOUT_ASSET } from "@/lib/constants";
+import { getCkbPerUsd } from "@/lib/price";
+import { getTreasury } from "@/lib/fiber/service";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { CreatePayrollClient } from "@/components/payroll/create-payroll-client";
 
@@ -31,7 +32,8 @@ export default async function NewPayrollPage() {
           preferredStablecoin: e.preferredStablecoin,
         }))}
         defaultMonth={defaultMonth}
-        stablecoin={PAYOUT_ASSET}
+        ckbPerUsd={await getCkbPerUsd()}
+        channelCkb={await getTreasury(user.companyId).then((t) => (t.live ? t.channelCkb : null))}
       />
     </div>
   );

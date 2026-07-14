@@ -60,7 +60,7 @@ export function SettingsForm({
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label>Default stablecoin</Label>
+          <Label>Default payout asset</Label>
           <Select value={form.defaultStablecoin} onValueChange={(v) => set("defaultStablecoin", v)}>
             <SelectTrigger>
               <SelectValue />

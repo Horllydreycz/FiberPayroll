@@ -14,7 +14,7 @@ export function Topbar({
   unread: number;
 }) {
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur md:px-6">
+    <header className="sticky top-0 z-30 flex h-[72px] items-center gap-3 border-b bg-background/80 px-4 backdrop-blur md:px-6">
       <div className="md:hidden">
         <Logo showText={false} />
       </div>

@@ -18,6 +18,15 @@ export async function requireUser() {
   return user;
 }
 
+/** Throws unless the signed-in user holds one of the given roles. */
+export async function requireRole(...roles: string[]) {
+  const user = await requireUser();
+  if (!roles.includes(user.role)) {
+    throw new Error(`Your role (${user.role.toLowerCase().replace("_", " ")}) doesn't allow this action.`);
+  }
+  return user;
+}
+
 /** The active company id for the signed-in user. */
 export async function requireCompanyId() {
   const user = await requireUser();

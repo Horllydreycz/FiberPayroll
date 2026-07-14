@@ -121,6 +121,6 @@ export class SimulatedFiberAdapter implements FiberAdapter {
     // Amount/stablecoin aren't encoded in the hash; callers persist them in the
     // DB and pass canonical values. We return 0 here and let the service layer
     // merge in the stored amount. Status/fee/hops are derived from the hash.
-    return toPayment(paymentHash, 0, "RUSD");
+    return toPayment(paymentHash, 0, "CKB");
   }
 }

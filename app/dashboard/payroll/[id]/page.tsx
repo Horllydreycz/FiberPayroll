@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireCompanyId } from "@/lib/session";
+import { getTreasury } from "@/lib/fiber/service";
+import { getCkbPerUsd } from "@/lib/price";
 import { formatDate } from "@/lib/utils";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -31,6 +33,10 @@ export default async function PayrollDetailPage({
   });
   if (!batch) notFound();
 
+  // Live channel liquidity + CKB/USD rate for the pre-execution check.
+  const [treasury, ckbPerUsd] = await Promise.all([getTreasury(companyId), getCkbPerUsd()]);
+  const channelCkb = treasury.live ? treasury.channelCkb : null;
+
   const initial: DetailBatch = {
     id: batch.id,
     reference: batch.reference,
@@ -44,6 +50,7 @@ export default async function PayrollDetailPage({
       country: it.employee.country,
       netAmount: it.netAmount,
       stablecoinAmount: it.stablecoinAmount,
+      stablecoin: it.stablecoin,
       currency: it.currency,
       status: it.status,
       paymentHash: it.payment?.paymentHash ?? null,
@@ -67,7 +74,7 @@ export default async function PayrollDetailPage({
       >
         <StatusBadge status={batch.status} />
       </PageHeader>
-      <PayrollDetailClient initial={initial} />
+      <PayrollDetailClient initial={initial} channelCkb={channelCkb} ckbPerUsd={ckbPerUsd} />
     </div>
   );
 }

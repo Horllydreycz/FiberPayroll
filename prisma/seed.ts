@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { toPayoutCkb, DEFAULT_TAX_RATE } from "../lib/constants";
+import { toPayoutAsset, ckbEquivalent, DEFAULT_TAX_RATE, CKB_PER_USD } from "../lib/constants";
 
 const prisma = new PrismaClient();
 
@@ -96,7 +96,7 @@ async function main() {
         jobTitle,
         department,
         walletAddress: wallet(),
-        preferredStablecoin: pick(["RUSD", "USDI", "USDC"]),
+        preferredStablecoin: pick(["CKB", "CKB", "USDC", "USDT"]),
         salaryAmount: salary,
         currency: "CKB", // CKB-native payroll — the amount shown is the amount sent
         paymentFrequency: "MONTHLY",
@@ -132,11 +132,13 @@ async function main() {
   let total = 0;
   let psCount = 0;
   for (const emp of employees) {
+    const asset = emp.preferredStablecoin;
     const gross = emp.salaryAmount;
     const tax = Math.round(gross * DEFAULT_TAX_RATE * 100) / 100;
     const net = gross - tax;
-    const stableAmt = toPayoutCkb(net, emp.currency);
-    total += stableAmt;
+    // Seed uses the static rate — deterministic data, no network dependency.
+    const stableAmt = toPayoutAsset(net, emp.currency, asset, CKB_PER_USD);
+    total += ckbEquivalent(stableAmt, asset, CKB_PER_USD);
 
     const item = await prisma.payrollItem.create({
       data: {
@@ -146,7 +148,7 @@ async function main() {
         netAmount: net,
         currency: emp.currency,
         stablecoinAmount: stableAmt,
-        stablecoin: "CKB",
+        stablecoin: asset,
         walletAddress: emp.walletAddress,
         status: "SETTLED",
         batchId: batch.id,
@@ -161,7 +163,7 @@ async function main() {
         paymentHash: "0x" + Array.from({ length: 64 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join(""),
         invoice: "fibt1" + Array.from({ length: 48 }, () => "0123456789abcdefghjkmnpqrstuvwxyz"[Math.floor(Math.random() * 33)]).join(""),
         amount: stableAmt,
-        stablecoin: "CKB",
+        stablecoin: asset,
         status: "SUCCESS",
         fee: Math.round(stableAmt * 0.0002 * 100) / 100,
         routeHops: 1 + Math.floor(Math.random() * 3),

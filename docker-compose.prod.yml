@@ -33,17 +33,19 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: file:/app/data/dev.db
-      AUTH_SECRET: ${AUTH_SECRET:?generate one with: npx auth secret}
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET missing - generate with npx auth secret}
       AUTH_TRUST_HOST: "true"
       AUTH_URL: https://${DOMAIN}
       FIBER_MODE: rpc
-      FIBER_RPC_URL: http://fiber-a:8227
+      FIBER_RPC_URL: http://fiber-a:9227
       FIBER_PAYOUT_PUBKEY: ${FIBER_PAYOUT_PUBKEY:-}
       FIBER_PAYOUT_ADDR: ${FIBER_PAYOUT_ADDR:-}
       FIBER_PAYMENT_SHANNONS: ${FIBER_PAYMENT_SHANNONS:-100000000}
       FIBER_CKB_RPC_URL: ${FIBER_CKB_RPC_URL:-https://testnet.ckbapp.dev/}
       FIBER_PAYER_LOCK_ARG: ${FIBER_PAYER_LOCK_ARG:-}
       FIBER_PAYER_LOCK_CODE_HASH: ${FIBER_PAYER_LOCK_CODE_HASH:-0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-FiberPayroll <onboarding@resend.dev>}
     volumes:
       - payroll-data:/app/data
     depends_on:
@@ -61,6 +63,17 @@ services:
       - ./deploy/fiber/a:/fiber
     networks: [payroll]
     # No published ports: RPC stays internal, P2P dials out to bootnodes.
+
+  # Socat sidecar: exposes fiber-a's localhost-only RPC to the compose
+  # network on 9227 (fnn refuses public RPC binds without biscuit auth,
+  # so the node config keeps rpc.listening_addr on 127.0.0.1).
+  fiber-a-proxy:
+    image: alpine/socat
+    restart: unless-stopped
+    network_mode: "service:fiber-a"
+    command: tcp-listen:9227,fork,reuseaddr tcp-connect:127.0.0.1:8227
+    depends_on:
+      - fiber-a
 
   # Payout node — receives employee payments in the demo.
   fiber-b:

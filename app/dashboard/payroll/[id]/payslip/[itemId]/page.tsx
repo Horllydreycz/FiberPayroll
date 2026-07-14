@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireCompanyId } from "@/lib/session";
 import { formatMoney, formatDate, shortHash, explorerTxUrl } from "@/lib/utils";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { EmailPayslipButton } from "@/components/payroll/email-payslip-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +33,7 @@ export default async function PayslipPage({
         </Link>
       </Button>
       <PageHeader title={`Payslip ${item.payslip.number}`} description={item.batch.payrollMonth}>
+        <EmailPayslipButton itemId={item.id} email={item.employee.email} />
         <Button asChild>
           <a href={`/api/payslip/${item.id}`} target="_blank" rel="noopener noreferrer">
             <Download /> Download PDF

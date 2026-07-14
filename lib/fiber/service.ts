@@ -4,18 +4,23 @@
 
 import { prisma } from "@/lib/prisma";
 import { cuid } from "@/lib/utils";
-import { getCkbUsdPrice } from "@/lib/price";
+import { getCkbUsdPrice, getCkbPerUsd } from "@/lib/price";
 import { fiber } from "./index";
 import type { FiberPaymentStatus } from "./types";
-import type { ItemStatus, SettlementStage } from "@/lib/constants";
+import { ckbEquivalent, type ItemStatus, type SettlementStage } from "@/lib/constants";
 
 // A payment that hasn't reached a terminal state within this window is marked
 // FAILED (and becomes retryable) instead of pending forever.
 const PAYMENT_TIMEOUT_MS = 60_000;
 
 export type Treasury =
-  | { live: true; onchainCkb: number; channelCkb: number; totalCkb: number }
+  | { live: true; onchainCkb: number; channelCkb: number; totalCkb: number; nodeOk: boolean }
   | { live: false; balance: number; stablecoin: string };
+
+// Micro-cache: page loads reuse a treasury reading for a few seconds so slow
+// public RPCs can't hang every render. Funds checks bypass this (fresh read).
+let treasuryCache: { value: Treasury; at: number } | null = null;
+const TREASURY_TTL_MS = 5_000;
 
 /**
  * The company treasury. In rpc mode this is the REAL balance of the employer's
@@ -23,10 +28,17 @@ export type Treasury =
  * it falls back to the DB ledger balance.
  */
 export async function getTreasury(companyId: string): Promise<Treasury> {
+  if (treasuryCache && Date.now() - treasuryCache.at < TREASURY_TTL_MS) {
+    return treasuryCache.value;
+  }
   const f = fiber();
   if (f.mode === "rpc" && f.getBalance) {
     const bal = await f.getBalance();
-    if (bal) return { live: true, ...bal };
+    if (bal) {
+      const value: Treasury = { live: true, ...bal };
+      treasuryCache = { value, at: Date.now() };
+      return value;
+    }
   }
   const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId } });
   return { live: false, balance: company.balance, stablecoin: company.defaultStablecoin };
@@ -124,11 +136,12 @@ export async function executeBatch(batchId: string, actorName?: string) {
 
   // Funds gate: never start payments the treasury can't cover. Throws before
   // the batch is touched, so it stays APPROVED and the UI shows the reason.
+  const gateRate = await getCkbPerUsd();
   await assertSufficientFunds(
     batch.companyId,
     toPay.length,
-    toPay.reduce((s, it) => s + it.stablecoinAmount, 0),
-    batch.stablecoin,
+    toPay.reduce((s, it) => s + ckbEquivalent(it.stablecoinAmount, it.stablecoin, gateRate), 0),
+    "CKB",
   );
 
   await prisma.payrollBatch.update({
@@ -259,22 +272,34 @@ export async function syncBatch(batchId: string) {
       if (payment.status === "SUCCESS" && payment.usdAmount == null && ckbUsd != null) {
         await prisma.payment.update({
           where: { id: payment.id },
-          data: { usdRate: ckbUsd, usdAmount: payment.amount * ckbUsd },
+          data: {
+            usdRate: ckbUsd,
+            // USD-pegged assets are already ≈USD; CKB converts at spot.
+            usdAmount:
+              payment.stablecoin === "CKB" ? payment.amount * ckbUsd : payment.amount,
+          },
         });
       }
       continue;
     }
 
-    const remote = await f.getPayment(payment.paymentHash);
+    // A payment the node no longer recognizes (restarted/wiped node, stub
+    // hash) must not crash the sync — treat it as still-unsettled so the
+    // timeout below can clean it up.
+    let remote: Awaited<ReturnType<typeof f.getPayment>> | null = null;
+    try {
+      remote = await f.getPayment(payment.paymentHash);
+    } catch {
+      remote = null;
+    }
 
-    // Timeout: still not settled or failed after 60s since the last state
-    // change (updatedAt resets on retry, so retries get a fresh window).
-    if (
-      remote.status !== "SUCCESS" &&
-      remote.status !== "FAILED" &&
-      Date.now() - payment.updatedAt.getTime() > PAYMENT_TIMEOUT_MS
-    ) {
-      const reason = `Timed out — no settlement within ${PAYMENT_TIMEOUT_MS / 1000}s`;
+    // Timeout: still not settled or failed (or unknown to the node) after 60s
+    // since the last state change (updatedAt resets on retry).
+    const unsettled = !remote || (remote.status !== "SUCCESS" && remote.status !== "FAILED");
+    if (unsettled && Date.now() - payment.updatedAt.getTime() > PAYMENT_TIMEOUT_MS) {
+      const reason = remote
+        ? `Timed out — no settlement within ${PAYMENT_TIMEOUT_MS / 1000}s`
+        : "Timed out — payment unknown to the node (node restarted?)";
       await prisma.payment.update({
         where: { id: payment.id },
         data: { status: "FAILED", failedReason: reason },
@@ -285,6 +310,7 @@ export async function syncBatch(batchId: string) {
       continue;
     }
 
+    if (!remote) continue;
     if (remote.status === payment.status) continue;
 
     const stages = payment.events.map((e) => e.stage);
@@ -307,7 +333,11 @@ export async function syncBatch(batchId: string) {
         settledAt: remote.status === "SUCCESS" ? new Date() : null,
         // Stamp the USD value of the payout at settlement time.
         ...(remote.status === "SUCCESS" && ckbUsd != null
-          ? { usdRate: ckbUsd, usdAmount: payment.amount * ckbUsd }
+          ? {
+              usdRate: ckbUsd,
+              usdAmount:
+                payment.stablecoin === "CKB" ? payment.amount * ckbUsd : payment.amount,
+            }
           : {}),
       },
     });
@@ -427,8 +457,8 @@ export async function retryItem(itemId: string, actorName?: string) {
   await assertSufficientFunds(
     item.batch.companyId,
     1,
-    item.stablecoinAmount,
-    item.stablecoin,
+    ckbEquivalent(item.stablecoinAmount, item.stablecoin, await getCkbPerUsd()),
+    "CKB",
   );
 
   const f = fiber();
