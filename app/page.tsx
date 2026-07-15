@@ -52,15 +52,16 @@ export default function LandingPage() {
           <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(60%_50%_at_50%_0%,oklch(0.55_0.12_160/0.12),transparent)]" />
           <div className="mx-auto max-w-6xl px-4 py-20 text-center md:px-6 md:py-28">
             <Badge className="mb-5 gap-1.5">
-              <Zap className="h-3.5 w-3.5" /> Built on Nervos CKB · Fiber Network
+              <Zap className="h-3.5 w-3.5" /> Payment UX layer · Nervos CKB Fiber Network
             </Badge>
             <h1 className="mx-auto max-w-3xl text-balance text-4xl font-semibold tracking-tight md:text-6xl">
-              Global payroll on Fiber,{" "}
-              <span className="text-primary">completed in minutes</span>
+              Real Fiber payments,{" "}
+              <span className="text-primary">settled in seconds</span>
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-pretty text-lg text-muted-foreground">
-              Upload your team, approve a payroll run, and pay everyone worldwide over Fiber
-              payment channels — with live settlement tracking and audit-ready reports.
+              A reusable payment layer over a Fiber node, shown here as global payroll. Add
+              your team, approve a run, and pay everyone over Fiber channels, with live
+              settlement tracking and receipts anyone can verify.
             </p>
             <div className="mt-8 flex items-center justify-center gap-3">
               <Button asChild size="lg">

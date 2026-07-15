@@ -1,14 +1,20 @@
 # Fiber Payroll
 
-> Pay a global team over the Nervos CKB Fiber Network. Each payment lands in about a second and costs a fraction of a cent.
+> A reusable payment-UX layer over the Nervos CKB Fiber Network, shown as global payroll. Each payment lands in about a second and costs a fraction of a cent.
 
 Live demo: **https://216-250-118-10.sslip.io**
 
-Add your team, put together a payroll run, approve it, and pay everyone. Each person's
-pay moves over a Fiber payment channel and settles in roughly a second. The balance you
-see in the app is the Fiber node's actual balance, not a number in a database. Every
-payment records what it was worth in USD the moment it settled, and every payslip has a
-QR code anyone can scan to check the payment really happened.
+The core of this project is a small payment layer that sits over a Fiber node and handles
+the things every payment app needs: reading real spendable balance, refusing a spend the
+channel can't cover, tracking settlement, retrying failures, and producing a receipt
+anyone can verify. It lives in [`lib/fiber/`](lib/fiber) behind one interface, so you can
+build on it instead of talking to raw JSON-RPC.
+
+Payroll is how the layer is put to work. Add your team, build a run, approve it, and pay
+everyone — each person's pay moves over a Fiber channel and settles in roughly a second.
+The balance you see is the node's actual balance, not a number in a database. Every
+payment records what it was worth in USD the moment it settled, and every payslip carries
+a QR code anyone can scan to check the payment really happened.
 
 ## Quick start (no Fiber node needed)
 
